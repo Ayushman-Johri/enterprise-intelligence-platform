@@ -1,0 +1,19 @@
+NOVATECH SUPPLIES PVT LTD - TAX INVOICE
+Invoice No: INV-7781
+Invoice Date: 14 October 2026
+Bill To: Rosmerta Technologies Ltd, Gurugram
+PO Reference: PO-55120
+Vendor GSTIN: 06AABCN1234K1Z5
+Bank Account (for payment): HDFC Bank, A/C 50200011223344, IFSC HDFC0001234
+
+Line items:
+1. Dell PowerEdge R760 Server - Qty 4 - Unit Price INR 6,80,000 - Amount INR 27,20,000
+2. Windows Server 2022 Datacenter Licence - Qty 4 - Unit Price INR 4,10,000 - Amount INR 16,40,000
+3. Installation & Configuration Services - Qty 1 - Amount INR 3,50,000
+
+Sub-total: INR 47,10,000
+GST @18%: INR 8,47,800
+Grand Total: INR 55,57,800
+
+Payment terms: 30 days from invoice date.
+Authorised Signatory: R. Malhotra, Finance Head, NovaTech Supplies

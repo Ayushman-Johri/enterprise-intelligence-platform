@@ -1,0 +1,11 @@
+claim_id,employee,date,category,merchant,city,amount_inr,receipt_no,approved_by
+EXP-901,Rahul Sharma,2026-08-04,Hotel,Taj Vivanta,Mumbai,18500,TV-44812,Neha Gupta
+EXP-902,Rahul Sharma,2026-08-04,Meals,Leopold Cafe,Mumbai,2400,LC-1190,Neha Gupta
+EXP-903,Priya Nair,2026-08-11,Taxi,Uber,Bengaluru,950,UB-7781,Neha Gupta
+EXP-904,Rahul Sharma,2026-08-04,Hotel,Taj Vivanta,Mumbai,18500,TV-44812,Neha Gupta
+EXP-905,Amit Joshi,2026-08-15,Client Dinner,The Leela,Delhi,24900,TL-5521,Amit Joshi
+EXP-906,Rahul Sharma,2026-08-04,Meals,Karim's,Delhi,1800,KR-3302,Neha Gupta
+EXP-907,Priya Nair,2026-08-19,Flight,IndiGo,Bengaluru-Pune,7200,6E-99812,Neha Gupta
+EXP-908,Amit Joshi,2026-08-22,Client Dinner,The Leela,Delhi,24900,TL-5598,Amit Joshi
+EXP-909,Amit Joshi,2026-08-29,Client Dinner,The Leela,Delhi,24900,TL-5640,Amit Joshi
+EXP-910,Sneha Rao,2026-09-02,Office Supplies,Amazon,Online,4999,AMZ-77120,Neha Gupta

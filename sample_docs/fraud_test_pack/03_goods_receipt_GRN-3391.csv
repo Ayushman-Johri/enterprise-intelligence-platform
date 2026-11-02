@@ -1,0 +1,4 @@
+grn_id,po_number,item,qty_ordered,qty_received,received_date,received_by,condition
+GRN-3391,PO-55120,Dell PowerEdge R760 Server,3,3,2026-10-11,Suresh Kumar,good
+GRN-3391,PO-55120,Windows Server 2022 Datacenter Licence,3,3,2026-10-11,Suresh Kumar,license keys received
+GRN-3391,PO-55120,Installation & Configuration Services,1,0,,,not started

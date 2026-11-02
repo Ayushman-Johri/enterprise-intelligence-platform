@@ -1,0 +1,11 @@
+SRE RUNBOOK v2 (published June 2026)
+
+Section 1 - Escalation
+Severity 1 incidents must be escalated to the on-call engineering manager within 5 minutes.
+The incident commander is the on-call SRE; a communications lead must be assigned for customer-facing outages.
+
+Section 2 - Database
+Default connection pool size for all services is 40 connections, with a hard minimum of 10.
+
+Section 3 - Backups
+Production databases are backed up every 6 hours. Backups are retained for 35 days.

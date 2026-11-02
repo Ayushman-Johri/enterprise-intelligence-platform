@@ -1,0 +1,15 @@
+SRE RUNBOOK v1 (published January 2026)
+
+Section 1 - Escalation
+Severity 1 incidents must be escalated to the on-call engineering manager within 15 minutes.
+The incident commander is the on-call SRE.
+
+Section 2 - Database
+Default connection pool size for all services is 50 connections.
+Maximum allowed database connections per PostgreSQL cluster: 500.
+
+Section 3 - Backups
+Production databases are backed up every 24 hours. Backups are retained for 30 days.
+
+Section 4 - Certificates
+Certificates must be renewed at least 30 days before expiry.

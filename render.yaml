@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: enterprise-intelligence-platform
+    runtime: docker
+    plan: starter            # persistent disk needs a paid plan; free plan = data resets on redeploy
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_FALLBACK_MODELS
+        value: openai/gpt-oss-20b,qwen/qwen3.8-27b
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REGISTRATION_INVITE_CODE
+        sync: false          # set a code so only invited people can register
+      - key: TRUST_PROXY
+        value: "1"           # Render terminates TLS in front of the app
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: EMBEDDING_BACKEND
+        value: fastembed
+    disk:
+      name: eip-data
+      mountPath: /var/data
+      sizeGB: 1

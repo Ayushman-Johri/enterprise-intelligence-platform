@@ -1,0 +1,17 @@
+ROSMERTA TECHNOLOGIES LTD - PURCHASE ORDER
+PO Number: PO-55120
+PO Date: 02 October 2026
+Vendor: NovaTech Supplies Pvt Ltd
+Approved by: Ankit Verma, IT Procurement Manager
+Approval limit of approver: INR 50,00,000
+
+Ordered items:
+1. Dell PowerEdge R760 Server - Qty 3 - Unit Price INR 6,80,000 - Amount INR 20,40,000
+2. Windows Server 2022 Datacenter Licence - Qty 3 - Unit Price INR 3,95,000 - Amount INR 11,85,000
+3. Installation & Configuration Services - included free of cost as per quotation Q-2209
+
+PO Total (before GST): INR 32,25,000
+GST @18%: INR 5,80,500
+PO Total (incl. GST): INR 38,05,500
+
+Delivery address: Rosmerta Data Centre, Manesar

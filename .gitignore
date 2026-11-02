@@ -1,0 +1,11 @@
+.env
+**/.env
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/data/
+data/
+.jwt_secret
+.venv/
+venv/
+eval/results*.json

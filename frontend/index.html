@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Enterprise Intelligence Platform</title>
+  <link rel="stylesheet" href="css/style.css?v=4" />
+</head>
+<body>
+  <section id="authView" class="auth hidden">
+    <div class="auth-card">
+      <h1>🧠 Enterprise Intelligence</h1>
+      <p class="muted">RAG • Agents • Evidence-backed answers</p>
+      <div class="tabs">
+        <button class="tab active" data-auth="login" type="button">Login</button>
+        <button class="tab" data-auth="register" type="button" id="registerTab">Register</button>
+      </div>
+      <form id="authForm" autocomplete="on">
+        <input id="authName" placeholder="Full name" class="hidden" autocomplete="name" maxlength="80" />
+        <input id="authEmail" type="email" placeholder="Email" required autocomplete="username" maxlength="254" />
+        <input id="authPassword" type="password" placeholder="Password (8+ chars, letters & numbers)" required minlength="8" maxlength="128" autocomplete="current-password" />
+        <input id="authInvite" placeholder="Invite code" class="hidden" autocomplete="off" maxlength="200" />
+        <button type="submit" class="btn primary" id="authSubmit">Login</button>
+        <p id="authError" class="error" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+
+  <section id="appView" class="app hidden">
+    <aside class="sidebar">
+      <div class="brand">🧠 EIP</div>
+      <nav>
+        <a href="#dashboard" data-view="dashboard">📊 Dashboard</a>
+        <a href="#documents" data-view="documents">📁 Documents</a>
+        <a href="#chat" data-view="chat">💬 AI Chat</a>
+        <a href="#agent" data-view="agent">🤖 Agent Runs</a>
+        <a href="#logs" data-view="logs">📜 Logs</a>
+      </nav>
+      <div class="user-box">
+        <div id="userEmail" class="muted small"></div>
+        <button id="logoutBtn" class="btn ghost small" type="button">Logout</button>
+        <button id="logoutAllBtn" class="btn ghost small" type="button" title="Sign out on all devices">Logout everywhere</button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div id="view-dashboard" class="view">
+        <h2>Dashboard</h2>
+        <div class="cards" id="statCards"></div>
+        <div class="grid2">
+          <div class="panel"><h3>Tokens per day</h3><div id="tokenChart" class="bars"></div></div>
+          <div class="panel"><h3>Usage by model</h3><div class="scroll-x"><table id="modelTable"></table></div></div>
+        </div>
+      </div>
+
+      <div id="view-documents" class="view hidden">
+        <h2>Documents</h2>
+        <div class="panel">
+          <div id="dropZone" class="drop">
+            <p><b>Drop files here</b> or click to choose — PDF, TXT, MD, CSV</p>
+            <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md,.markdown,.csv" hidden />
+          </div>
+          <div id="uploadResult" class="small"></div>
+        </div>
+        <div class="panel">
+          <div class="row-between"><h3>Your documents</h3><button class="btn ghost small" id="refreshDocs" type="button">↻ Refresh</button></div>
+          <div class="scroll-x"><table id="docTable"></table></div>
+        </div>
+      </div>
+
+      <div id="view-chat" class="view hidden">
+        <div class="chat-layout" id="chatLayout">
+          <div class="conv-list panel">
+            <button class="btn primary small full" id="newConv" type="button">+ New chat</button>
+            <ul id="convList"></ul>
+          </div>
+          <div class="chat-main panel">
+            <div class="chat-toolbar">
+              <label>Mode
+                <select id="chatMode">
+                  <option value="rag">RAG Q&amp;A (grounded)</option>
+                  <option value="agent">Agent (multi-step tools)</option>
+                </select>
+              </label>
+              <label>Model
+                <select id="modelSelect"><option value="">Auto (primary + fallback)</option></select>
+              </label>
+              <label>Scope
+                <select id="docFilter"><option value="">All documents</option></select>
+              </label>
+              <button type="button" class="btn ghost small toggle-insp" id="toggleInspector" title="Show / hide inspector">🔍 Inspector</button>
+            </div>
+            <div id="messages" class="messages"></div>
+            <form id="chatForm" class="chat-input">
+              <textarea id="chatInput" rows="2" maxlength="4000" placeholder="Ask about your documents… (Enter = send, Shift+Enter = new line)"></textarea>
+              <button class="btn primary" id="sendBtn">Send</button>
+            </form>
+          </div>
+          <div class="inspector panel" id="inspectorPanel">
+            <div class="row-between"><h3>Inspector</h3><button type="button" class="btn ghost small" id="closeInspector">✕</button></div>
+            <div id="inspector" class="small muted">Click "details" on an answer to see sources, verification, tokens and agent steps.</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="view-agent" class="view hidden">
+        <h2>Agent execution history</h2>
+        <div id="agentRuns"></div>
+      </div>
+
+      <div id="view-logs" class="view hidden">
+        <h2>Activity &amp; LLM logs</h2>
+        <div class="grid2">
+          <div class="panel"><h3>LLM calls</h3><div class="scroll"><table id="llmLogTable" class="log-table"></table></div></div>
+          <div class="panel"><h3>Activity</h3><div class="scroll"><table id="activityTable" class="log-table"></table></div></div>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script src="js/api.js?v=4"></script>
+  <script src="js/markdown.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
+</body>
+</html>

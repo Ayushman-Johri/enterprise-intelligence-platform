@@ -1,0 +1,7 @@
+incident_id,date,service,severity,root_cause_category,duration_minutes,customer_impact
+INC-1042,2026-01-14,payments-api,SEV1,connection pool exhaustion,130,high
+INC-1077,2026-02-03,order-service,SEV2,memory leak,45,medium
+INC-1103,2026-03-09,identity-provider,SEV1,certificate expiry,90,high
+INC-1150,2026-04-21,search-indexer,SEV2,connection pool exhaustion,180,medium
+INC-1188,2026-05-30,checkout-web,SEV3,configuration drift,25,low
+INC-1201,2026-06-12,notification-service,SEV3,third-party API rate limit,60,low
