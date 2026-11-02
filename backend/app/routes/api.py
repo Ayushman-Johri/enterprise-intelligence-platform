@@ -1,7 +1,9 @@
 """REST API. Every data query is scoped by g.user['id'] (prevents IDOR)."""
+import datetime as dt
 import json
 import logging
 import os
+import re
 import secrets
 import sqlite3
 import time
@@ -163,6 +165,48 @@ def admin_invite():
     return jsonify(user={"id": uid, "email": email, "name": name, "role": "user"}, password=pw), 201
 
 
+# A Vercel request is rejected at about 4.5 MB, so larger files arrive in pieces.
+UPLOAD_CHUNK_BYTES = 3 * 1024 * 1024
+_UPLOAD_ID = re.compile(r"^[A-Za-z0-9]{8,64}$")
+
+
+def _usage(uid: int):
+    usage = db.query("SELECT COUNT(*) AS n, COALESCE(SUM(size_bytes),0) AS bytes FROM documents WHERE user_id=?",
+                     (uid,), one=True)
+    return usage["n"], usage["bytes"]
+
+
+def _store_document(uid: int, name: str, data: bytes, n_docs: int, used: int):
+    """Validate, save, and queue one file. Returns (result, n_docs, used)."""
+    try:
+        ext = documents.validate_upload(name, data)
+        if n_docs >= Config.MAX_DOCS_PER_USER:
+            raise documents.ValidationError(f"document limit reached ({Config.MAX_DOCS_PER_USER})")
+        if used + len(data) > Config.MAX_STORAGE_MB_PER_USER * 1024 * 1024:
+            raise documents.ValidationError(f"storage quota reached ({Config.MAX_STORAGE_MB_PER_USER} MB)")
+    except documents.ValidationError as e:
+        db.log_activity(uid, "document.rejected", {"filename": name, "reason": str(e)}, "warning")
+        return {"filename": name, "status": "rejected", "error": str(e)}, n_docs, used
+    h = documents.sha256(data)
+    dup = db.query("SELECT id, filename FROM documents WHERE user_id=? AND content_hash=?", (uid, h), one=True)
+    if dup:
+        return {"filename": name, "status": "duplicate", "document_id": dup["id"],
+                "message": f"identical content already uploaded as '{dup['filename']}'"}, n_docs, used
+    user_dir = os.path.join(Config.UPLOAD_DIR, str(int(uid)))
+    os.makedirs(user_dir, exist_ok=True)
+    path = os.path.join(user_dir, f"{h[:16]}_{name}")
+    with open(path, "wb") as out:
+        out.write(data)
+    try:
+        did = db.execute("INSERT INTO documents (user_id, filename, file_type, file_path, content_hash, size_bytes) "
+                         "VALUES (?,?,?,?,?,?)", (uid, name, ext, path, h, len(data)))
+    except sqlite3.IntegrityError:
+        return {"filename": name, "status": "duplicate"}, n_docs, used
+    job = jobs.enqueue(did)
+    db.log_activity(uid, "document.uploaded", {"document_id": did, "filename": name})
+    return {"filename": name, "status": "queued", "document_id": did, "job": job}, n_docs + 1, used + len(data)
+
+
 # ---------------- documents ----------------
 @api.post("/documents")
 @auth.login_required
@@ -176,45 +220,66 @@ def upload():
     ok, retry = ratelimit.hit(f"upload:{uid}", Config.UPLOAD_RATE_PER_HOUR, 3600, cost=len(files))
     if not ok:
         return _too_many("upload limit reached, try later", retry)
-    usage = db.query("SELECT COUNT(*) AS n, COALESCE(SUM(size_bytes),0) AS bytes FROM documents WHERE user_id=?",
-                     (uid,), one=True)
-    n_docs, used = usage["n"], usage["bytes"]
+    n_docs, used = _usage(uid)
     results = []
     for f in files:
         name = documents.safe_filename(f.filename)
         data = f.read(Config.MAX_UPLOAD_MB * 1024 * 1024 + 1)
-        try:
-            ext = documents.validate_upload(name, data)
-            if n_docs >= Config.MAX_DOCS_PER_USER:
-                raise documents.ValidationError(f"document limit reached ({Config.MAX_DOCS_PER_USER})")
-            if used + len(data) > Config.MAX_STORAGE_MB_PER_USER * 1024 * 1024:
-                raise documents.ValidationError(f"storage quota reached ({Config.MAX_STORAGE_MB_PER_USER} MB)")
-        except documents.ValidationError as e:
-            results.append({"filename": name, "status": "rejected", "error": str(e)})
-            db.log_activity(uid, "document.rejected", {"filename": name, "reason": str(e)}, "warning")
-            continue
-        h = documents.sha256(data)
-        dup = db.query("SELECT id, filename FROM documents WHERE user_id=? AND content_hash=?", (uid, h), one=True)
-        if dup:
-            results.append({"filename": name, "status": "duplicate", "document_id": dup["id"],
-                            "message": f"identical content already uploaded as '{dup['filename']}'"})
-            continue
-        user_dir = os.path.join(Config.UPLOAD_DIR, str(int(uid)))
-        os.makedirs(user_dir, exist_ok=True)
-        path = os.path.join(user_dir, f"{h[:16]}_{name}")
-        with open(path, "wb") as out:
-            out.write(data)
-        try:
-            did = db.execute("INSERT INTO documents (user_id, filename, file_type, file_path, content_hash, size_bytes) "
-                             "VALUES (?,?,?,?,?,?)", (uid, name, ext, path, h, len(data)))
-        except sqlite3.IntegrityError:
-            results.append({"filename": name, "status": "duplicate"})
-            continue
-        n_docs, used = n_docs + 1, used + len(data)
-        job = jobs.enqueue(did)
-        db.log_activity(uid, "document.uploaded", {"document_id": did, "filename": name})
-        results.append({"filename": name, "status": "queued", "document_id": did, "job": job})
+        result, n_docs, used = _store_document(uid, name, data, n_docs, used)
+        results.append(result)
     return jsonify(results=results), (202 if any(r["status"] == "queued" for r in results) else 200)
+
+
+@api.post("/documents/parts")
+@auth.login_required
+def upload_part():
+    """Accept one piece of a large file, then store it once every piece has arrived."""
+    uid = g.user["id"]
+    upload_id = str(request.form.get("upload_id", ""))
+    if not _UPLOAD_ID.match(upload_id):
+        return jsonify(error="invalid upload"), 400
+    try:
+        index = int(request.form["part_index"])
+        total = int(request.form["total_parts"])
+    except (KeyError, ValueError):
+        return jsonify(error="invalid part"), 400
+    if total < 1 or total > 8 or index < 0 or index >= total:
+        return jsonify(error="invalid part"), 400
+    incoming = request.files.get("chunk")
+    if incoming is None:
+        return jsonify(error="no file provided"), 400
+    data = incoming.read(UPLOAD_CHUNK_BYTES + 1)
+    if not data:
+        return jsonify(error="file is empty"), 400
+    if len(data) > UPLOAD_CHUNK_BYTES:
+        return jsonify(error="upload chunk is too large"), 413
+    name = documents.safe_filename(request.form.get("filename") or incoming.filename)
+    if index == 0:
+        ok, retry = ratelimit.hit(f"upload:{uid}", Config.UPLOAD_RATE_PER_HOUR, 3600)
+        if not ok:
+            return _too_many("upload limit reached, try later", retry)
+    cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=6)).strftime("%Y-%m-%d %H:%M:%S")
+    db.execute("DELETE FROM upload_parts WHERE created_at < ?", (cutoff,))
+    held = db.query("SELECT COALESCE(SUM(LENGTH(data)),0) AS n FROM upload_parts WHERE upload_id=? AND user_id=?",
+                    (upload_id, uid), one=True)["n"]
+    if int(held) + len(data) > Config.MAX_UPLOAD_MB * 1024 * 1024:
+        db.execute("DELETE FROM upload_parts WHERE upload_id=? AND user_id=?", (upload_id, uid))
+        return jsonify(error=f"File exceeds {Config.MAX_UPLOAD_MB} MB limit"), 413
+    db.execute("INSERT INTO upload_parts (upload_id, part_index, user_id, filename, total_parts, data) "
+               "VALUES (?,?,?,?,?,?) ON CONFLICT(upload_id, part_index) DO UPDATE SET "
+               "data=excluded.data, filename=excluded.filename, total_parts=excluded.total_parts",
+               (upload_id, index, uid, name, total, data))
+    rows = db.query("SELECT part_index, filename, data FROM upload_parts WHERE upload_id=? AND user_id=? "
+                    "ORDER BY part_index", (upload_id, uid))
+    if {r["part_index"] for r in rows} != set(range(total)):
+        return jsonify(status="partial", received=len(rows)), 202
+    blob = b"".join(r["data"] for r in rows)
+    final_name = documents.safe_filename(rows[0]["filename"])
+    db.execute("DELETE FROM upload_parts WHERE upload_id=? AND user_id=?", (upload_id, uid))
+    n_docs, used = _usage(uid)
+    result, _, _ = _store_document(uid, final_name, blob, n_docs, used)
+    code = 202 if result["status"] == "queued" else 200
+    return jsonify(result=result), code
 
 
 @api.get("/documents")

@@ -1,6 +1,7 @@
 """API & web security tests: cookie session, CSRF, lockout, revocation, rate limits, IDOR, headers, errors."""
 import io
 import itertools
+import time
 
 import pytest
 
@@ -172,6 +173,43 @@ def test_upload_duplicate_and_idor(client, app):
     register(other)
     assert other.get(f"/api/documents/{doc_id}").status_code == 404
     assert other.delete(f"/api/documents/{doc_id}", headers=csrf(other)).status_code == 404
+
+
+def test_chunked_upload_reassembles_out_of_order(client):
+    register(client)
+    payload = b"Pool size is 50 connections. " * 20
+    mid = len(payload) // 2
+    first = client.post("/api/documents/parts", headers=csrf(client), content_type="multipart/form-data",
+                        data={"upload_id": "abc12345upload", "part_index": "1", "total_parts": "2",
+                              "filename": "notes.txt", "chunk": (io.BytesIO(payload[mid:]), "notes.txt")})
+    assert first.status_code == 202 and first.get_json()["status"] == "partial"
+    second = client.post("/api/documents/parts", headers=csrf(client), content_type="multipart/form-data",
+                         data={"upload_id": "abc12345upload", "part_index": "0", "total_parts": "2",
+                               "filename": "notes.txt", "chunk": (io.BytesIO(payload[:mid]), "notes.txt")})
+    body = second.get_json()
+    assert second.status_code == 202 and body["result"]["status"] == "queued"
+    doc_id = body["result"]["document_id"]
+    doc = {}
+    for _ in range(50):
+        doc = client.get(f"/api/documents/{doc_id}").get_json()["document"]
+        if doc["status"] in ("ready", "failed"):
+            break
+        time.sleep(0.05)
+    assert doc["status"] == "ready", doc.get("error")
+    assert doc["chunks_preview"][0]["text"].startswith("Pool size is 50")
+
+
+def test_upload_part_is_private_to_the_owner(client, app):
+    register(client)
+    client.post("/api/documents/parts", headers=csrf(client), content_type="multipart/form-data",
+                data={"upload_id": "ownerpart1", "part_index": "0", "total_parts": "2",
+                      "filename": "a.txt", "chunk": (io.BytesIO(b"hello part "), "a.txt")})
+    other = app.test_client()
+    register(other)
+    stolen = other.post("/api/documents/parts", headers=csrf(other), content_type="multipart/form-data",
+                        data={"upload_id": "ownerpart1", "part_index": "1", "total_parts": "2",
+                              "filename": "a.txt", "chunk": (io.BytesIO(b"secret"), "a.txt")})
+    assert stolen.get_json()["status"] == "partial"
 
 
 def test_upload_rejects_bad_type_and_quota(client, monkeypatch):

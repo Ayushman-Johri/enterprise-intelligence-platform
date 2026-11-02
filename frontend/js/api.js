@@ -22,7 +22,8 @@ const Api = {
       App.showAuth(); throw new Error("Session expired - please log in again");
     }
     if (!res.ok) {
-      let msg = data.error || ("HTTP " + res.status);
+      let msg = data.error || data.result?.error || ("HTTP " + res.status);
+      if (res.status === 413 && !data.error) msg = "That file is too large to upload (max 15 MB).";
       if (data.error_ref) msg += ` (ref ${data.error_ref})`;
       if (res.status === 429 && data.retry_after) msg += ` — retry in ${data.retry_after}s`;
       const err = new Error(msg); err.status = res.status; throw err;

@@ -124,14 +124,47 @@ const App = {
     $("#refreshDocs").onclick = () => this.loadDocs();
   },
   async upload(files) {
-    if (!files.length) return;
+    const list = [...files];
+    if (!list.length) return;
+    const max = 15 * 1024 * 1024;
+    const tooBig = list.filter(f => f.size > max);
+    if (tooBig.length) {
+      $("#uploadResult").textContent = tooBig.map(f => `${f.name} is over 15 MB`).join(". ");
+      $("#fileInput").value = "";
+      return;
+    }
     $("#uploadResult").textContent = "Uploading…";
     try {
-      const r = await Api.upload(files);
-      $("#uploadResult").innerHTML = r.results.map(x => `<div>${esc(x.filename)} → <span class="pill st-${safeClass(x.status)}">${esc(x.status)}</span> ${esc(x.error || x.message || "")}</div>`).join("");
+      const results = [];
+      for (const file of list) {
+        if (file.size <= 3 * 1024 * 1024) {
+          const r = await Api.upload([file]);
+          results.push(...r.results);
+        } else {
+          results.push(await this.uploadInParts(file));
+        }
+      }
+      $("#uploadResult").innerHTML = results.map(x => `<div>${esc(x.filename)} → <span class="pill st-${safeClass(x.status)}">${esc(x.status)}</span> ${esc(x.error || x.message || "")}</div>`).join("");
       this.loadDocs();
     } catch (e) { $("#uploadResult").textContent = e.message; }
     $("#fileInput").value = "";
+  },
+  async uploadInParts(file) {
+    const chunkSize = 3 * 1024 * 1024;
+    const total = Math.ceil(file.size / chunkSize);
+    const uploadId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).replace(/-/g, "");
+    let last = null;
+    for (let i = 0; i < total; i++) {
+      $("#uploadResult").textContent = `Uploading ${file.name} (${i + 1}/${total})…`;
+      const form = new FormData();
+      form.append("upload_id", uploadId);
+      form.append("part_index", String(i));
+      form.append("total_parts", String(total));
+      form.append("filename", file.name);
+      form.append("chunk", file.slice(i * chunkSize, (i + 1) * chunkSize), file.name);
+      last = await Api.req("/documents/parts", { method: "POST", form });
+    }
+    return last.result;
   },
   async loadDocs() {
     try {
