@@ -1,0 +1,6 @@
+flask>=3.0
+requests>=2.32
+pypdf>=5.0
+numpy>=2.1
+PyJWT>=2.9
+python-dotenv>=1.0

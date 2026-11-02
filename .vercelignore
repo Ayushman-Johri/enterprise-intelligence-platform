@@ -1,0 +1,7 @@
+backend/data
+backend/.env
+**/.env
+.venv
+**/.venv
+**/__pycache__
+.git
