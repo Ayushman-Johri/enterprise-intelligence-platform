@@ -1,7 +1,4 @@
-"""
-Authentication & session security.
-
-- JWT (HS256 pinned, exp/iat/iss/jti) delivered in an HttpOnly + SameSite=Strict cookie (JS can't read it).
+"""JWT (HS256 pinned, exp/iat/iss/jti) delivered in an HttpOnly + SameSite=Lax cookie (JS can't read it).
 - CSRF: double-submit token - cookie `eip_csrf` (readable) must equal header `X-CSRF-Token` on every
   state-changing request that authenticates via cookie.
 - API clients (eval script, curl) may use `Authorization: Bearer <token>` instead (no CSRF needed).
@@ -12,6 +9,7 @@ import datetime as dt
 import hmac
 import re
 import secrets
+import string
 from functools import wraps
 
 import jwt
@@ -38,6 +36,14 @@ def password_problem(pw: str, email: str) -> str:
     if pw.lower() == email.lower() or pw.lower() in {"password1", "password123", "12345678a", "qwerty123"}:
         return "password is too easy to guess"
     return ""
+
+
+def random_password() -> str:
+    alphabet = string.ascii_letters + string.digits
+    while True:
+        pw = "".join(secrets.choice(alphabet) for _ in range(12))
+        if password_problem(pw, "user@example.com") == "":
+            return pw
 
 
 def create_user(email: str, password: str, name: str = "", role: str = "user") -> int:
@@ -95,15 +101,15 @@ def issue_token(user: dict) -> tuple:
 def set_session_cookies(resp, token: str, exp_ts: int):
     max_age = Config.JWT_EXP_HOURS * 3600
     resp.set_cookie(SESSION_COOKIE, token, max_age=max_age, httponly=True, secure=Config.COOKIE_SECURE,
-                    samesite="Strict", path="/")
+                    samesite="Lax", path="/")
     resp.set_cookie(CSRF_COOKIE, secrets.token_urlsafe(32), max_age=max_age, httponly=False,
-                    secure=Config.COOKIE_SECURE, samesite="Strict", path="/")
+                    secure=Config.COOKIE_SECURE, samesite="Lax", path="/")
     return resp
 
 
 def clear_session_cookies(resp):
     for name in (SESSION_COOKIE, CSRF_COOKIE):
-        resp.delete_cookie(name, path="/", samesite="Strict", secure=Config.COOKIE_SECURE)
+        resp.delete_cookie(name, path="/", samesite="Lax", secure=Config.COOKIE_SECURE)
     return resp
 
 

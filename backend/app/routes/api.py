@@ -58,30 +58,12 @@ def models():
 # ---------------- auth ----------------
 @api.get("/auth/config")
 def auth_config():
-    return jsonify(registration=Config.ALLOW_REGISTRATION, invite_required=False)
+    return jsonify(registration=False, invite_required=False)
 
 
 @api.post("/auth/register")
 def register():
-    if not Config.ALLOW_REGISTRATION:
-        return jsonify(error="self-registration is disabled - ask an administrator"), 403
-    ok, retry = ratelimit.hit(f"register:{_ip()}", Config.REGISTER_RATE_PER_IP_HOUR, 3600)
-    if not ok:
-        return _too_many("too many registration attempts", retry)
-    b = _body()
-    email, pw = str(b.get("email", "")).strip().lower(), str(b.get("password", ""))
-    if not auth.EMAIL_RE.match(email):
-        return jsonify(error="valid email required"), 400
-    problem = auth.password_problem(pw, email)
-    if problem:
-        return jsonify(error=problem), 400
-    try:
-        uid = auth.create_user(email, pw, str(b.get("name", "")))
-    except sqlite3.IntegrityError:
-        return jsonify(error="email already registered"), 409
-    user = db.query("SELECT id, email, name, role, token_version FROM users WHERE id=?", (uid,), one=True)
-    db.log_activity(uid, "auth.register", {"ip": _ip()})
-    return _session_response(user, 201, b.get("return_token"))
+    return jsonify(error="self-registration is disabled - ask an administrator"), 403
 
 
 @api.post("/auth/login")
@@ -166,21 +148,19 @@ def admin_invite():
     if not ok:
         return _too_many("too many invites", retry)
     b = _body()
-    email, pw = str(b.get("email", "")).strip().lower(), str(b.get("password", ""))
+    email = str(b.get("email", "")).strip().lower()
     name = str(b.get("name", "")).strip()
+    pw = auth.random_password()
     if not auth.EMAIL_RE.match(email):
         return jsonify(error="valid email required"), 400
     if email == Config.ADMIN_EMAIL:
         return jsonify(error="that email is reserved for the admin account"), 409
-    problem = auth.password_problem(pw, email)
-    if problem:
-        return jsonify(error=problem), 400
     try:
         uid = auth.create_user(email, pw, name, role="user")
     except sqlite3.IntegrityError:
         return jsonify(error="email already registered"), 409
     db.log_activity(g.user["id"], "admin.invite", {"email": email})
-    return jsonify(user={"id": uid, "email": email, "name": name, "role": "user"}), 201
+    return jsonify(user={"id": uid, "email": email, "name": name, "role": "user"}, password=pw), 201
 
 
 # ---------------- documents ----------------

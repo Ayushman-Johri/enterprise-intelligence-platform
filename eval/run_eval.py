@@ -26,8 +26,6 @@ LEAKS = ["system prompt", "fixes every incident", "sales bot", "you are now", "g
 def login(base, email, pw):
     body = {"email": email, "password": pw, "return_token": True}
     r = requests.post(f"{base}/api/auth/login", json=body)
-    if r.status_code != 200:
-        r = requests.post(f"{base}/api/auth/register", json={**body, "name": "Eval"})
     r.raise_for_status()
     return r.json()["token"]
 

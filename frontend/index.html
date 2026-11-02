@@ -5,23 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="referrer" content="no-referrer" />
   <title>Enterprise Intelligence Platform</title>
-  <link rel="stylesheet" href="css/style.css?v=5" />
+  <link rel="stylesheet" href="css/style.css?v=6" />
 </head>
 <body>
   <section id="authView" class="auth hidden">
     <div class="auth-card">
-      <h1>🧠 Enterprise Intelligence</h1>
-      <p class="muted">RAG • Agents • Evidence-backed answers</p>
-      <div class="tabs">
-        <button class="tab active" data-auth="login" type="button">Login</button>
-        <button class="tab" data-auth="register" type="button" id="registerTab">Register</button>
-      </div>
+      <h1>Enterprise Intelligence</h1>
+      <p class="muted">Sign in with the account an admin created for you.</p>
       <form id="authForm" autocomplete="on">
-        <input id="authName" placeholder="Full name" class="hidden" autocomplete="name" maxlength="80" />
         <input id="authEmail" type="email" placeholder="Email" required autocomplete="username" maxlength="254" />
-        <input id="authPassword" type="password" placeholder="Password (8+ chars, letters & numbers)" required minlength="8" maxlength="128" autocomplete="current-password" />
+        <input id="authPassword" type="password" placeholder="Password" required minlength="8" maxlength="128" autocomplete="current-password" />
         <button type="submit" class="btn primary" id="authSubmit">Login</button>
-        <p id="authHint" class="muted small">New here? Open Register and create an account. No invite code.</p>
+        <p id="authHint" class="muted small">There is no public registration. Ask an admin for an account.</p>
         <p id="authError" class="error" aria-live="polite"></p>
       </form>
     </div>
@@ -36,7 +31,7 @@
         <a href="#chat" data-view="chat">💬 AI Chat</a>
         <a href="#agent" data-view="agent">🤖 Agent Runs</a>
         <a href="#logs" data-view="logs">📜 Logs</a>
-        <a href="#admin" data-view="admin" id="adminNav" class="hidden">👤 Invite users</a>
+        <a href="#admin" data-view="admin" id="adminNav" class="hidden">Who has access</a>
       </nav>
       <div class="user-box">
         <div id="userEmail" class="muted small"></div>
@@ -111,19 +106,18 @@
       </div>
 
       <div id="view-admin" class="view hidden">
-        <h2>Invite a user</h2>
+        <h2>Who has access</h2>
         <div class="panel">
-          <p class="muted">Create an account for someone. They sign in with the email and password you choose.</p>
+          <p class="muted">Create an account. A password is generated once and shown here. Share it with that person.</p>
           <form id="inviteForm" class="invite-form">
             <input id="inviteName" placeholder="Full name" maxlength="80" autocomplete="off" />
             <input id="inviteEmail" type="email" placeholder="Email" required maxlength="254" autocomplete="off" />
-            <input id="invitePassword" type="text" placeholder="Password (8+ chars, letters and numbers)" required minlength="8" maxlength="128" autocomplete="off" />
             <button class="btn primary" type="submit">Create account</button>
           </form>
           <p id="inviteResult" class="small"></p>
         </div>
         <div class="panel">
-          <div class="row-between"><h3>Accounts</h3><button class="btn ghost small" id="refreshUsers" type="button">↻ Refresh</button></div>
+          <div class="row-between"><h3>Accounts</h3><button class="btn ghost small" id="refreshUsers" type="button">Refresh</button></div>
           <div class="scroll-x"><table id="userTable"></table></div>
         </div>
       </div>
@@ -139,8 +133,8 @@
   </section>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="js/api.js?v=5"></script>
-  <script src="js/markdown.js?v=5"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/api.js?v=6"></script>
+  <script src="js/markdown.js?v=6"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>

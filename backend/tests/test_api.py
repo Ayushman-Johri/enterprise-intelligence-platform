@@ -30,9 +30,15 @@ def csrf(c):
 
 
 def register(c, email=None):
+    from app import auth
+    import sqlite3
     email = email or f"user{next(_n)}@test.com"
-    r = c.post("/api/auth/register", json={"email": email, "password": PW})
-    assert r.status_code == 201, r.get_json()
+    try:
+        auth.create_user(email, PW, "Test")
+    except sqlite3.IntegrityError:
+        pass
+    r = c.post("/api/auth/login", json={"email": email, "password": PW})
+    assert r.status_code == 200, r.get_json()
     return email
 
 
@@ -43,7 +49,7 @@ def test_login_sets_httponly_strict_cookie_and_no_token_in_body(client):
     assert r.status_code == 200 and "token" not in r.get_json()
     cookies = r.headers.getlist("Set-Cookie")
     sess = next(c for c in cookies if c.startswith("eip_session="))
-    assert "HttpOnly" in sess and "SameSite=Strict" in sess
+    assert "HttpOnly" in sess and "SameSite=Lax" in sess
     assert client.get("/api/auth/me").status_code == 200
 
 
@@ -108,14 +114,8 @@ def test_lockout_is_uniform_for_unknown_emails(client, monkeypatch):
     assert client.post("/api/auth/login", json={"email": "ghost@x.com", "password": "nope1234"}).status_code == 429
 
 
-def test_password_policy_and_registration_controls(client, monkeypatch):
-    assert client.post("/api/auth/register", json={"email": "w@x.com", "password": "short"}).status_code == 400
-    assert client.post("/api/auth/register", json={"email": "w@x.com", "password": "onlyletters"}).status_code == 400
-    monkeypatch.setattr(Config, "ALLOW_REGISTRATION", False)
+def test_public_registration_is_closed(client):
     assert client.post("/api/auth/register", json={"email": "z@x.com", "password": PW}).status_code == 403
-    monkeypatch.setattr(Config, "ALLOW_REGISTRATION", True)
-    monkeypatch.setattr(Config, "REGISTRATION_INVITE_CODE", "team-2026")
-    assert client.post("/api/auth/register", json={"email": "z@x.com", "password": PW}).status_code == 201
 
 
 def test_admin_invites_a_user_and_members_cannot(client):
@@ -123,12 +123,15 @@ def test_admin_invites_a_user_and_members_cannot(client):
     auth.create_user("admin@eip.local", PW, "Admin", role="admin")
     assert client.post("/api/auth/login", json={"email": "admin@eip.local", "password": PW}).status_code == 200
     created = client.post("/api/admin/users", headers=csrf(client),
-                          json={"email": "invited@x.com", "password": PW, "name": "Invited"})
+                          json={"email": "invited@x.com", "name": "Invited"})
     assert created.status_code == 201, created.get_json()
-    assert client.post("/api/auth/login", json={"email": "invited@x.com", "password": PW}).status_code == 200
+    pw = created.get_json()["password"]
+    assert client.post("/api/auth/login", json={"email": "invited@x.com", "password": pw}).status_code == 200
+    listed = client.get("/api/admin/users")
+    assert listed.status_code == 403
     register(client)
     denied = client.post("/api/admin/users", headers=csrf(client),
-                         json={"email": "other@x.com", "password": PW, "name": "Other"})
+                         json={"email": "other@x.com", "name": "Other"})
     assert denied.status_code == 403
 
 

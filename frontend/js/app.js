@@ -14,32 +14,18 @@ const App = {
 
   async init() {
     this.bindAuth(); this.bindNav(); this.bindDocs(); this.bindChat();
-    try { this.authCfg = await Api.get("/auth/config"); } catch (_) { this.authCfg = { registration: true }; }
-    if (!this.authCfg.registration) $("#registerTab").classList.add("hidden");
     this.bindInvite();
     try { const { user } = await Api.get("/auth/me"); this.enter(user); } catch (_) { this.showAuth(); }
   },
 
   // ---------- auth ----------
-  authMode: "login",
   bindAuth() {
-    document.querySelectorAll("[data-auth]").forEach(b => b.onclick = () => {
-      document.querySelectorAll("[data-auth]").forEach(x => x.classList.remove("active"));
-      b.classList.add("active"); this.authMode = b.dataset.auth;
-      const reg = this.authMode === "register";
-      $("#authName").classList.toggle("hidden", !reg);
-      $("#authHint").textContent = reg
-        ? "Choose an email and password. You can sign in with them right away."
-        : "New here? Open Register and create an account. No invite code.";
-      $("#authPassword").autocomplete = reg ? "new-password" : "current-password";
-      $("#authSubmit").textContent = reg ? "Create account" : "Login";
-    });
     $("#authForm").onsubmit = async (e) => {
       e.preventDefault(); $("#authError").textContent = "";
       try {
-        const body = { email: $("#authEmail").value, password: $("#authPassword").value };
-        if (this.authMode === "register") body.name = $("#authName").value;
-        const r = await Api.post("/auth/" + this.authMode, body);
+        const r = await Api.post("/auth/login", {
+          email: $("#authEmail").value, password: $("#authPassword").value,
+        });
         $("#authPassword").value = "";
         this.enter(r.user);
       } catch (err) { $("#authError").textContent = err.message; }
@@ -86,10 +72,9 @@ const App = {
       e.preventDefault();
       $("#inviteResult").textContent = "";
       const email = $("#inviteEmail").value.trim();
-      const password = $("#invitePassword").value;
       try {
-        await Api.post("/admin/users", { name: $("#inviteName").value.trim(), email, password });
-        $("#inviteResult").textContent = "Account created. They sign in with " + email + " and the password you set.";
+        const created = await Api.post("/admin/users", { name: $("#inviteName").value.trim(), email });
+        $("#inviteResult").textContent = "Account created for " + email + ". Password: " + created.password + " — copy it now. It is not shown again.";
         $("#inviteForm").reset();
         this.loadUsers();
       } catch (err) { $("#inviteResult").textContent = err.message; }
