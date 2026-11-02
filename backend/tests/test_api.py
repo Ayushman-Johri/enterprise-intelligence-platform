@@ -115,9 +115,21 @@ def test_password_policy_and_registration_controls(client, monkeypatch):
     assert client.post("/api/auth/register", json={"email": "z@x.com", "password": PW}).status_code == 403
     monkeypatch.setattr(Config, "ALLOW_REGISTRATION", True)
     monkeypatch.setattr(Config, "REGISTRATION_INVITE_CODE", "team-2026")
-    assert client.post("/api/auth/register", json={"email": "z@x.com", "password": PW}).status_code == 403
-    assert client.post("/api/auth/register", json={"email": "z@x.com", "password": PW,
-                                                   "invite_code": "team-2026"}).status_code == 201
+    assert client.post("/api/auth/register", json={"email": "z@x.com", "password": PW}).status_code == 201
+
+
+def test_admin_invites_a_user_and_members_cannot(client):
+    from app import auth
+    auth.create_user("admin@eip.local", PW, "Admin", role="admin")
+    assert client.post("/api/auth/login", json={"email": "admin@eip.local", "password": PW}).status_code == 200
+    created = client.post("/api/admin/users", headers=csrf(client),
+                          json={"email": "invited@x.com", "password": PW, "name": "Invited"})
+    assert created.status_code == 201, created.get_json()
+    assert client.post("/api/auth/login", json={"email": "invited@x.com", "password": PW}).status_code == 200
+    register(client)
+    denied = client.post("/api/admin/users", headers=csrf(client),
+                         json={"email": "other@x.com", "password": PW, "name": "Other"})
+    assert denied.status_code == 403
 
 
 # ---------- abuse / cost ----------

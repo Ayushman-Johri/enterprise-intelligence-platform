@@ -29,6 +29,7 @@ th { font-size:12px; color:var(--muted); font-weight:600; }
 .auth { min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#1e3a8a,#2f5bea); }
 .auth-card { background:#fff; padding:32px; border-radius:16px; width:360px; box-shadow:0 20px 50px rgba(0,0,0,.2); }
 .auth-card h1 { margin:0; font-size:22px; } .auth-card form { display:flex; flex-direction:column; gap:10px; }
+.invite-form { display:grid; gap:10px; max-width:420px; }
 .tabs { display:flex; gap:6px; margin:16px 0; } .tab { flex:1; padding:8px; border:1px solid var(--border); background:#fff; border-radius:8px; cursor:pointer; }
 .tab.active { background:var(--primary); color:#fff; border-color:var(--primary); }
 

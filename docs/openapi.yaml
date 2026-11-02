@@ -31,7 +31,6 @@ components:
         email: { type: string }
         password: { type: string, minLength: 8, description: "8-128 chars, letters and numbers" }
         name: { type: string }
-        invite_code: { type: string, description: required when REGISTRATION_INVITE_CODE is set }
         return_token: { type: boolean, description: return the JWT in the body (API clients only) }
     Source:
       type: object
@@ -80,13 +79,13 @@ paths:
   /api/models:
     get: { summary: Configured models and availability for the key, responses: { '200': { description: OK } } }
   /api/auth/config:
-    get: { security: [], summary: Whether registration is open / needs an invite code, responses: { '200': { description: OK } } }
+    get: { security: [], summary: Whether self-registration is open, responses: { '200': { description: OK } } }
   /api/auth/register:
     post:
       security: []
-      summary: Register (rate limited per IP; may be disabled or invite-only)
+      summary: Register with email and password (rate limited per IP; may be disabled)
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Credentials' } } } }
-      responses: { '201': { description: session cookies set }, '400': { description: validation }, '403': { description: disabled / bad invite }, '409': { description: exists }, '429': { description: throttled } }
+      responses: { '201': { description: session cookies set }, '400': { description: validation }, '403': { description: disabled }, '409': { description: exists }, '429': { description: throttled } }
   /api/auth/login:
     post:
       security: []

@@ -40,9 +40,26 @@ def password_problem(pw: str, email: str) -> str:
     return ""
 
 
-def create_user(email: str, password: str, name: str = "") -> int:
-    return db.execute("INSERT INTO users (email, password_hash, name) VALUES (?,?,?)",
-                      (email.lower().strip(), generate_password_hash(password), name.strip()[:80]))
+def create_user(email: str, password: str, name: str = "", role: str = "user") -> int:
+    if role not in {"user", "admin"}:
+        role = "user"
+    return db.execute("INSERT INTO users (email, password_hash, name, role) VALUES (?,?,?,?)",
+                      (email.lower().strip(), generate_password_hash(password), name.strip()[:80], role))
+
+
+def ensure_admin():
+    """Create or refresh the operator account from ADMIN_EMAIL and ADMIN_PASSWORD."""
+    email, password = Config.ADMIN_EMAIL, Config.ADMIN_PASSWORD
+    if not email or not EMAIL_RE.match(email) or password_problem(password, email):
+        return
+    hashed = generate_password_hash(password)
+    row = db.query("SELECT id FROM users WHERE email=?", (email,), one=True)
+    if row:
+        db.execute("UPDATE users SET password_hash=?, role='admin', name=COALESCE(NULLIF(name, ''), 'Administrator') WHERE id=?",
+                   (hashed, row["id"]))
+        return
+    db.execute("INSERT INTO users (email, password_hash, name, role) VALUES (?,?,?,?)",
+               (email, hashed, "Administrator", "admin"))
 
 
 # A real hash so unknown emails take the same time as wrong passwords (no user enumeration by timing)
@@ -131,5 +148,15 @@ def login_required(fn):
         if not user or int(user["token_version"]) != int(payload.get("tv", -1)):
             return jsonify(error="session revoked"), 401
         g.user, g.token_payload = user, payload
+        return fn(*a, **kw)
+    return wrapper
+
+
+def admin_required(fn):
+    @wraps(fn)
+    @login_required
+    def wrapper(*a, **kw):
+        if (g.user["role"] or "user") != "admin":
+            return jsonify(error="admin only"), 403
         return fn(*a, **kw)
     return wrapper

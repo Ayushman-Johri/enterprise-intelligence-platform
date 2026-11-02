@@ -16,6 +16,7 @@ const App = {
     this.bindAuth(); this.bindNav(); this.bindDocs(); this.bindChat();
     try { this.authCfg = await Api.get("/auth/config"); } catch (_) { this.authCfg = { registration: true }; }
     if (!this.authCfg.registration) $("#registerTab").classList.add("hidden");
+    this.bindInvite();
     try { const { user } = await Api.get("/auth/me"); this.enter(user); } catch (_) { this.showAuth(); }
   },
 
@@ -27,7 +28,9 @@ const App = {
       b.classList.add("active"); this.authMode = b.dataset.auth;
       const reg = this.authMode === "register";
       $("#authName").classList.toggle("hidden", !reg);
-      $("#authInvite").classList.toggle("hidden", !(reg && this.authCfg.invite_required));
+      $("#authHint").textContent = reg
+        ? "Choose an email and password. You can sign in with them right away."
+        : "New here? Open Register and create an account. No invite code.";
       $("#authPassword").autocomplete = reg ? "new-password" : "current-password";
       $("#authSubmit").textContent = reg ? "Create account" : "Login";
     });
@@ -35,7 +38,7 @@ const App = {
       e.preventDefault(); $("#authError").textContent = "";
       try {
         const body = { email: $("#authEmail").value, password: $("#authPassword").value };
-        if (this.authMode === "register") { body.name = $("#authName").value; body.invite_code = $("#authInvite").value; }
+        if (this.authMode === "register") body.name = $("#authName").value;
         const r = await Api.post("/auth/" + this.authMode, body);
         $("#authPassword").value = "";
         this.enter(r.user);
@@ -49,8 +52,11 @@ const App = {
     $("#authView").classList.remove("hidden"); $("#appView").classList.add("hidden");
   },
   enter(user) {
+    this.user = user || null;
     $("#authView").classList.add("hidden"); $("#appView").classList.remove("hidden");
-    $("#userEmail").textContent = user ? user.email : "";
+    const role = user && user.role === "admin" ? " · admin" : "";
+    $("#userEmail").textContent = user ? user.email + role : "";
+    $("#adminNav").classList.toggle("hidden", !(user && user.role === "admin"));
     this.modelsLoaded = false;
     this.route();
   },
@@ -64,13 +70,37 @@ const App = {
   bindNav() { window.addEventListener("hashchange", () => this.route()); },
   route() {
     if ($("#appView").classList.contains("hidden")) return;
-    const v = (location.hash || "#dashboard").slice(1);
+    let v = (location.hash || "#dashboard").slice(1);
+    if (v === "admin" && !(this.user && this.user.role === "admin")) v = "dashboard";
     document.querySelectorAll(".view").forEach(x => x.classList.add("hidden"));
     ($("#view-" + v) || $("#view-dashboard")).classList.remove("hidden");
     document.querySelectorAll("nav a").forEach(a => a.classList.toggle("active", a.dataset.view === v));
     clearInterval(this.pollTimer);
     ({ dashboard: () => this.loadStats(), documents: () => this.loadDocs(), chat: () => this.loadChat(),
-       agent: () => this.loadRuns(), logs: () => this.loadLogs() }[v] || (() => this.loadStats()))();
+       agent: () => this.loadRuns(), logs: () => this.loadLogs(), admin: () => this.loadUsers() }[v] || (() => this.loadStats()))();
+  },
+
+  bindInvite() {
+    $("#refreshUsers").onclick = () => this.loadUsers();
+    $("#inviteForm").onsubmit = async (e) => {
+      e.preventDefault();
+      $("#inviteResult").textContent = "";
+      const email = $("#inviteEmail").value.trim();
+      const password = $("#invitePassword").value;
+      try {
+        await Api.post("/admin/users", { name: $("#inviteName").value.trim(), email, password });
+        $("#inviteResult").textContent = "Account created. They sign in with " + email + " and the password you set.";
+        $("#inviteForm").reset();
+        this.loadUsers();
+      } catch (err) { $("#inviteResult").textContent = err.message; }
+    };
+  },
+  async loadUsers() {
+    try {
+      const { users } = await Api.get("/admin/users");
+      $("#userTable").innerHTML = "<tr><th>Email</th><th>Name</th><th>Role</th><th>Created</th></tr>" +
+        users.map(u => `<tr><td>${esc(u.email)}</td><td>${esc(u.name || "")}</td><td>${esc(u.role)}</td><td>${esc(u.created_at || "")}</td></tr>`).join("");
+    } catch (e) { toast(e.message, true); }
   },
 
   // ---------- dashboard ----------

@@ -1,5 +1,4 @@
 """REST API. Every data query is scoped by g.user['id'] (prevents IDOR)."""
-import hmac
 import json
 import logging
 import os
@@ -59,7 +58,7 @@ def models():
 # ---------------- auth ----------------
 @api.get("/auth/config")
 def auth_config():
-    return jsonify(registration=Config.ALLOW_REGISTRATION, invite_required=bool(Config.REGISTRATION_INVITE_CODE))
+    return jsonify(registration=Config.ALLOW_REGISTRATION, invite_required=False)
 
 
 @api.post("/auth/register")
@@ -71,9 +70,6 @@ def register():
         return _too_many("too many registration attempts", retry)
     b = _body()
     email, pw = str(b.get("email", "")).strip().lower(), str(b.get("password", ""))
-    if Config.REGISTRATION_INVITE_CODE and not hmac.compare_digest(
-            str(b.get("invite_code", "")), Config.REGISTRATION_INVITE_CODE):
-        return jsonify(error="invalid invite code"), 403
     if not auth.EMAIL_RE.match(email):
         return jsonify(error="valid email required"), 400
     problem = auth.password_problem(pw, email)
@@ -83,7 +79,7 @@ def register():
         uid = auth.create_user(email, pw, str(b.get("name", "")))
     except sqlite3.IntegrityError:
         return jsonify(error="email already registered"), 409
-    user = db.query("SELECT id, email, name, token_version FROM users WHERE id=?", (uid,), one=True)
+    user = db.query("SELECT id, email, name, role, token_version FROM users WHERE id=?", (uid,), one=True)
     db.log_activity(uid, "auth.register", {"ip": _ip()})
     return _session_response(user, 201, b.get("return_token"))
 
@@ -109,7 +105,8 @@ def login():
 
 def _session_response(user: dict, code: int, return_token=False):
     token, exp = auth.issue_token(user)
-    body = {"user": {"id": user["id"], "email": user["email"], "name": user.get("name")}}
+    body = {"user": {"id": user["id"], "email": user["email"], "name": user.get("name"),
+                     "role": user.get("role") or "user"}}
     if return_token is True:          # for API clients (eval script); browsers use the HttpOnly cookie
         body["token"] = token
     resp = jsonify(body)
@@ -153,6 +150,37 @@ def change_password():
 @auth.login_required
 def me():
     return jsonify(user={k: g.user[k] for k in ("id", "email", "name", "role")})
+
+
+@api.get("/admin/users")
+@auth.admin_required
+def admin_users():
+    rows = db.query("SELECT id, email, name, role, created_at FROM users ORDER BY id")
+    return jsonify(users=[dict(r) for r in rows])
+
+
+@api.post("/admin/users")
+@auth.admin_required
+def admin_invite():
+    ok, retry = ratelimit.hit(f"invite:{g.user['id']}", 30, 3600)
+    if not ok:
+        return _too_many("too many invites", retry)
+    b = _body()
+    email, pw = str(b.get("email", "")).strip().lower(), str(b.get("password", ""))
+    name = str(b.get("name", "")).strip()
+    if not auth.EMAIL_RE.match(email):
+        return jsonify(error="valid email required"), 400
+    if email == Config.ADMIN_EMAIL:
+        return jsonify(error="that email is reserved for the admin account"), 409
+    problem = auth.password_problem(pw, email)
+    if problem:
+        return jsonify(error=problem), 400
+    try:
+        uid = auth.create_user(email, pw, name, role="user")
+    except sqlite3.IntegrityError:
+        return jsonify(error="email already registered"), 409
+    db.log_activity(g.user["id"], "admin.invite", {"email": email})
+    return jsonify(user={"id": uid, "email": email, "name": name, "role": "user"}), 201
 
 
 # ---------------- documents ----------------

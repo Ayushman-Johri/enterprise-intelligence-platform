@@ -39,6 +39,8 @@ def create_app() -> Flask:
                                 x_host=Config.TRUST_PROXY)
 
     db.init_db()
+    from .auth import ensure_admin
+    ensure_admin()
     os.makedirs(Config.UPLOAD_DIR, exist_ok=True)
     from .services import jobs, llm, ratelimit
     jobs.recover_stale_jobs()
