@@ -9,3 +9,5 @@ data/
 .venv/
 venv/
 eval/results*.json
+.vercel
+.env.local
