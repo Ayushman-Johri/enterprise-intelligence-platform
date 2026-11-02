@@ -1,5 +1,6 @@
 """Asynchronous document processing with duplicate-job prevention and injection scanning."""
 import logging
+import os
 import secrets
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -25,7 +26,15 @@ def enqueue(document_id: int) -> dict:
         _active.add(document_id)
     job_id = db.execute("INSERT INTO jobs (document_id, status) VALUES (?, 'queued')", (document_id,))
     db.execute("UPDATE documents SET status='queued', error=NULL WHERE id=?", (document_id,))
-    _executor.submit(_run, job_id, document_id)
+    # A Vercel function ends when the response is sent, so a background thread never finishes.
+    if os.getenv("VERCEL") == "1":
+        try:
+            process_document(job_id, document_id)
+        finally:
+            with _active_lock:
+                _active.discard(document_id)
+    else:
+        _executor.submit(_run, job_id, document_id)
     return {"queued": True, "job_id": job_id}
 
 

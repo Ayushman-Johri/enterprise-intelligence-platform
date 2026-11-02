@@ -4,6 +4,8 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _tmp = tempfile.mkdtemp()
+os.environ.pop("DATABASE_URL", None)
+os.environ.pop("POSTGRES_URL", None)
 os.environ.update({
     "APP_ENV": "development",
     "DATABASE_PATH": os.path.join(_tmp, "test.sqlite3"),

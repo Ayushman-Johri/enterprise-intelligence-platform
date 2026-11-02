@@ -6,11 +6,13 @@ import re
 import sqlite3
 import threading
 from contextlib import contextmanager
+from decimal import Decimal
 
 from .config import Config
 
 log = logging.getLogger("eip.db")
 _lock = threading.Lock()
+_pg_local = threading.local()
 MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "migrations")
 _ID_TABLES = {"users", "documents", "chunks", "jobs", "conversations", "messages", "llm_calls",
               "activity_logs", "agent_runs"}
@@ -27,7 +29,10 @@ def using_postgres() -> bool:
 def _prepare(sql: str, want_id: bool = False):
     """Turn the app's SQLite statements into Postgres statements."""
     original = sql
-    s = sql.replace("datetime('now')", "CURRENT_TIMESTAMP").replace('datetime("now")', "CURRENT_TIMESTAMP")
+    # Keep timestamps as text so the same comparisons work on both databases.
+    stamp = "to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')"
+    s = sql.replace("datetime('now')", stamp).replace('datetime("now")', stamp)
+    s = s.replace("date('now')", "(CURRENT_DATE)::text").replace('date("now")', "(CURRENT_DATE)::text")
     s = s.replace("date(created_at)", "substr(created_at, 1, 10)")
     ignore = re.search(r"INSERT\s+OR\s+IGNORE", original, re.I) is not None
     replace = re.search(r"INSERT\s+OR\s+REPLACE", original, re.I) is not None
@@ -84,6 +89,10 @@ class _PgConn:
         statement, returning = _prepare(sql, want_id=want_id)
         try:
             cur = self._conn.execute(statement, params or ())
+        except (psycopg.OperationalError, psycopg.InterfaceError):
+            _reset_postgres()
+            self._conn = _connect_postgres()._conn
+            cur = self._conn.execute(statement, params or ())
         except psycopg.Error:
             raise
         if not cur.description:
@@ -114,10 +123,24 @@ def _connect_sqlite():
 def _connect_postgres():
     import psycopg
     from psycopg.rows import dict_row
-    # prepare_threshold=None keeps this working through Neon's pooled connection.
-    raw = psycopg.connect(database_url(), row_factory=dict_row, connect_timeout=15,
-                          prepare_threshold=None)
+    # One connection per thread. Opening a new Neon connection for every query
+    # stalls the app once the free database has gone to sleep.
+    raw = getattr(_pg_local, "raw", None)
+    if raw is None or raw.closed:
+        raw = psycopg.connect(database_url(), row_factory=dict_row, connect_timeout=15,
+                              prepare_threshold=None)
+        _pg_local.raw = raw
     return _PgConn(raw)
+
+
+def _reset_postgres():
+    raw = getattr(_pg_local, "raw", None)
+    _pg_local.raw = None
+    if raw is not None and not raw.closed:
+        try:
+            raw.close()
+        except Exception:
+            pass
 
 
 def _connect():
@@ -131,10 +154,15 @@ def get_conn():
         yield conn
         conn.commit()
     except Exception:
-        conn.rollback()
+        try:
+            conn.rollback()
+        except Exception:
+            if using_postgres():
+                _reset_postgres()
         raise
     finally:
-        conn.close()
+        if not using_postgres():
+            conn.close()
 
 
 def _duplicate_column(exc: Exception) -> bool:
@@ -187,8 +215,17 @@ def init_db() -> None:
                     _apply(conn, name, f.read())
 
 
+def _plain(value):
+    """Postgres numeric results are Decimal, which Flask cannot serialize."""
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, memoryview):
+        return bytes(value)
+    return value
+
+
 def _rows(result):
-    return [dict(r) for r in result.fetchall()]
+    return [{k: _plain(v) for k, v in dict(r).items()} for r in result.fetchall()]
 
 
 def query(sql: str, params: tuple = (), one: bool = False):

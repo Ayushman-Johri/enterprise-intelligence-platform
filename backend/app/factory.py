@@ -3,9 +3,18 @@ import logging
 import os
 import secrets
 import threading
+from decimal import Decimal
 
 from flask import Flask, jsonify, request, send_from_directory
+from flask.json.provider import DefaultJSONProvider
 from werkzeug.exceptions import HTTPException
+
+
+class SafeJSONProvider(DefaultJSONProvider):
+    def default(self, o):
+        if isinstance(o, Decimal):
+            return int(o) if o == o.to_integral_value() else float(o)
+        return super().default(o)
 
 from . import db
 from .config import Config, resolve_jwt_secret
@@ -24,6 +33,7 @@ def create_app() -> Flask:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     log = logging.getLogger("eip")
     app = Flask(__name__, static_folder=None)
+    app.json_provider_class = SafeJSONProvider
     app.config["MAX_CONTENT_LENGTH"] = 20 * (Config.MAX_UPLOAD_MB + 1) * 1024 * 1024   # 20 files per request
     app.json.sort_keys = False
 
