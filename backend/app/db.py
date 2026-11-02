@@ -35,6 +35,12 @@ def _prepare(sql: str, want_id: bool = False):
     s = s.replace("?", "%s")
     # window is reserved in Postgres and is a column on rate_limits.
     s = re.sub(r"\bwindow\b", '"window"', s, flags=re.I)
+    s = re.sub(
+        r"DO\s+UPDATE\s+SET\s+count\s*=\s*count\s*\+\s*excluded\.count",
+        'DO UPDATE SET "count" = rate_limits."count" + EXCLUDED."count"',
+        s,
+        flags=re.I,
+    )
     if ignore and "ON CONFLICT" not in s.upper():
         s += " ON CONFLICT DO NOTHING"
     elif replace and "ON CONFLICT" not in s.upper():
